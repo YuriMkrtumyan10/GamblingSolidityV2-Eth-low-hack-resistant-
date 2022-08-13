@@ -280,7 +280,6 @@ describe("CoinFlip", function () {
     describe("Withdraw", () => {
         it("Should decrease profit ", async () => {
             const { coinflip, owner, tokenAddress, token, caller } = await loadFixture(deployToken);
-            //error on Payable
             await coinflip.withdraw(100);
 
             await expect(() => token.transfer(coinflip.address, 100))

@@ -78,7 +78,7 @@ contract CoinFlip is Ownable {
     }
 
     function play(uint256 _depositAmount, uint256 _choice) external payable {
-        require( msg.value > 0, "Asaasa");
+     //   require( msg.value > 0, "Asaasa");
         require(
             token.balanceOf(msg.sender) >= _depositAmount,
             "Not enough funds"
