@@ -36,19 +36,19 @@ describe("CoinFlip", function () {
     describe("Change Coefficient", () => {
         it("Should be able to change with correct args: ", async () => {
             const { coinflip, owner, caller } = await loadFixture(deployToken);
-            await coinflip.changeCoef(10);
+            await coinflip.changeCoef(195);
 
-            expect(await coinflip.coef()).to.equal(10);
+            expect(await coinflip.coef()).to.equal(195);
         });
 
-        // it("Should be in range: ", async () => {
-        //     const { coinflip, owner, caller } = await loadFixture(deployToken);
+        it("Should be in range > 100 and < 200: ", async () => {
+            const { coinflip, owner, caller } = await loadFixture(deployToken);
 
-        //     await expect(coinflip.changeCoef(99))
-        //         .to.be.revertedWith('Should be greater than 100, less than 200');
-        //     await expect(coinflip.changeCoef(201))
-        //         .to.be.revertedWith('Should be greater than 100, less than 200');
-        // });
+            await expect(coinflip.changeCoef(ethers.BigNumber.from("1")))
+                .to.be.revertedWith('Should be greater than 100, less than 200');
+
+        });
+
     });
 
     describe("Bet Interval", () => {
@@ -187,7 +187,7 @@ describe("CoinFlip", function () {
                     0,
                     winAmount,
                     1
-                    );
+                );
         })
 
         it("Should emit correct args when game is finished and player loses: ", async () => {
@@ -207,7 +207,7 @@ describe("CoinFlip", function () {
                     0,
                     0,
                     2
-                    );
+                );
         })
 
         //requires
@@ -267,14 +267,14 @@ describe("CoinFlip", function () {
             const callerMintAmount = ethers.BigNumber.from("10000");
 
             await token.mint(coinflip.address, contractMinAmount);
-            await token.mint(caller.address,  callerMintAmount);
+            await token.mint(caller.address, callerMintAmount);
 
             await token.connect(caller).approve(coinflip.address, 500);
 
             await expect(coinflip.connect(caller).play(depAmount, choice))
                 .to.be.revertedWith('Not enough allowance');
         });
-        
+
 
     });
 
@@ -289,13 +289,13 @@ describe("CoinFlip", function () {
                 .to.changeTokenBalance(token, coinflip, 100);
         });
 
-
         it("Should revert a message when there is not enough funds to withdraw ", async () => {
             const { coinflip, owner, caller } = await loadFixture(deployToken);
 
             await expect(coinflip.withdraw(10000000000000))
                 .to.be.revertedWith('Not enough funds');
         });
+
     });
 
 

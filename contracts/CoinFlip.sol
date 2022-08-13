@@ -59,10 +59,10 @@ contract CoinFlip is Ownable {
     }
 
     function changeCoef(uint256 _coef) external onlyOwner {
-        // require(
-        //     _coef > 100 && _coef < 200,
-        //     "Should be greater than 100, less than 200"
-        // );
+        require(
+            _coef > 100 && _coef < 200,
+            "Should be greater than 100, less than 200"
+        );
         coef = _coef;
     }
 
@@ -88,7 +88,7 @@ contract CoinFlip is Ownable {
                 _depositAmount <= maxDepositAmount,
             "CoinFlip: bet should be in range"
         );
-          require(
+        require(
             token.balanceOf(address(this)) >= (_depositAmount * coef) / 100,
             "Not enough funds to prize it"
         );
@@ -98,6 +98,8 @@ contract CoinFlip is Ownable {
             token.allowance(msg.sender, address(this)) >= _depositAmount,
             "Not enough allowance"
         );
+
+
         
       
         token.transferFrom(msg.sender, address(this), _depositAmount);
@@ -139,10 +141,6 @@ contract CoinFlip is Ownable {
 
     function withdraw(uint256 _amount) external onlyOwner {
         require(token.balanceOf(address(this)) >= _amount, "Not enough funds");
-        // require(
-        //     games[totalGamesCount].status == Status.WIN,
-        //     "Cant withdraww: Youre LOSER!!"
-        // );
         //profit -= _amount;
         token.transfer(msg.sender, _amount);
     }
