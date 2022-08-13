@@ -18,7 +18,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 // 11. private
 
 contract CoinFlip is Ownable {
-    //access control openzeppelin
     enum Status {
         PENDING,
         WIN,
@@ -79,6 +78,7 @@ contract CoinFlip is Ownable {
     }
 
     function play(uint256 _depositAmount, uint256 _choice) external payable {
+        require( msg.value > 0, "Asaasa");
         require(
             token.balanceOf(msg.sender) >= _depositAmount,
             "Not enough funds"

@@ -11,8 +11,4 @@ contract GameToken is ERC20("GameToken", "GT") {
         _burn(_from, _amount);
     }
 
-    function spendAllowance(address _owner,address _spender, uint256 _amount) public {
-        _spendAllowance(_owner, _spender, _amount);
-    }
-
 }

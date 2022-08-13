@@ -68,7 +68,7 @@ describe("CoinFlip", function () {
         });
     });
 
-    describe("Play", () => {
+    xdescribe("Play", () => {
 
         it("Should create win game with correct args: ", async () => {
             const { coinflip, tokenAddress, token, owner, caller } = await loadFixture(deployToken);
@@ -83,9 +83,7 @@ describe("CoinFlip", function () {
             await token.mint(coinflip.address, contractMinAmount);
             await token.mint(caller.address, 1000);
             await token.connect(caller).approve(coinflip.address, callerMintAmount);
-            console.log("Blaock number is :" + await ethers.provider.getBlockNumber());
-
-            await coinflip.connect(caller).play(depAmount, choice);
+            await coinflip.connect(caller).play({ value: depAmount }, choice);
 
             const winGame = await coinflip.games(0);
             const prize = depAmount * coinflip.coef() / 100;
@@ -168,7 +166,7 @@ describe("CoinFlip", function () {
                 .to.changeTokenBalances(token, [coinflip, caller], [depAmount, -depAmount]);
 
         });
-        it("Should emit correct args when game is finished and player wins: ", async () => {
+        it("Should emit correct args whsen game is finished and player wins: ", async () => {
             const { coinflip, owner, caller, token } = await loadFixture(deployToken);
             await token.mint(coinflip.address, ethers.BigNumber.from("1000"));
             await token.mint(caller.address, ethers.BigNumber.from("500"));
