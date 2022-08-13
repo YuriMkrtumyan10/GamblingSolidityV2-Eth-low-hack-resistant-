@@ -68,7 +68,7 @@ describe("CoinFlip", function () {
         });
     });
 
-    xdescribe("Play", () => {
+    describe("Play", () => {
 
         it("Should create win game with correct args: ", async () => {
             const { coinflip, tokenAddress, token, owner, caller } = await loadFixture(deployToken);
@@ -83,7 +83,7 @@ describe("CoinFlip", function () {
             await token.mint(coinflip.address, contractMinAmount);
             await token.mint(caller.address, 1000);
             await token.connect(caller).approve(coinflip.address, callerMintAmount);
-            await coinflip.connect(caller).play({ value: depAmount }, choice);
+            await coinflip.connect(caller).play(depAmount, choice);
 
             const winGame = await coinflip.games(0);
             const prize = depAmount * coinflip.coef() / 100;
