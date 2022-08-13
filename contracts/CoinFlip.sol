@@ -40,7 +40,7 @@ contract CoinFlip is Ownable {
     uint256 public profit;
     GameToken public token;
 
-    mapping(uint256 => Game) games;
+    mapping(uint256 => Game) public games;
 
     event GameFinished(
         address indexed _player,
@@ -59,6 +59,10 @@ contract CoinFlip is Ownable {
     }
 
     function changeCoef(uint256 _coef) external onlyOwner {
+        // require(
+        //     _coef > 100 && _coef < 200,
+        //     "Should be greater than 100, less than 200"
+        // );
         coef = _coef;
     }
 
@@ -84,16 +88,20 @@ contract CoinFlip is Ownable {
                 _depositAmount <= maxDepositAmount,
             "CoinFlip: bet should be in range"
         );
-        // require(
-        //     token.allowance(msg.sender, address(this)) >= _depositAmount,
-        //     "Not enough allowance"
-        // );
-
-        require(
+          require(
             token.balanceOf(address(this)) >= (_depositAmount * coef) / 100,
             "Not enough funds to prize it"
         );
+        require(_choice == 0 || _choice == 1, "Coinflip: wrong choice");
+
+        require(
+            token.allowance(msg.sender, address(this)) >= _depositAmount,
+            "Not enough allowance"
+        );
+        
+      
         token.transferFrom(msg.sender, address(this), _depositAmount);
+        
         Game memory game = Game(
             msg.sender,
             _depositAmount,
@@ -103,12 +111,12 @@ contract CoinFlip is Ownable {
             Status.PENDING
         );
 
-        uint256 result = block.timestamp % 2; // 0 || 1
+        uint256 result = block.number % 2; // 0 || 1
 
         if (result == _choice) {
             game.result = result;
             game.status = Status.WIN;
-            game.prize = (_depositAmount * coef) / 100;
+            game.prize = ((_depositAmount * coef) / 100);
             token.transfer(game.player, game.prize);
             games[totalGamesCount] = game;
         } else {
@@ -136,8 +144,7 @@ contract CoinFlip is Ownable {
         //     "Cant withdraww: Youre LOSER!!"
         // );
         //profit -= _amount;
-        
-        payable(msg.sender).transfer(_amount);
+        token.transfer(msg.sender, _amount);
     }
 
     function mint(uint256 _amount) public {
@@ -147,5 +154,4 @@ contract CoinFlip is Ownable {
     function burn(uint256 _amount) public {
         token.burn(msg.sender, _amount);
     }
-
 }
