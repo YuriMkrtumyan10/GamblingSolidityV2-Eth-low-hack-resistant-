@@ -276,6 +276,28 @@ describe("CoinFlip", function () {
 
     });
 
+    xdescribe("PlayWithEthereum", () => {
+        it("Should be able to play with Ether", async () =>{
+            const { coinflip, owner, tokenAddress, token, caller } = await loadFixture(deployToken);
+            
+            await mine(1);
+
+            const depAmount = {value: 10}
+            await coinflip.playWithEthereum(depAmount, 1);
+
+            const winGame = await coinflip.games(0);
+            const prize = depAmount * coinflip.coef() / 100;
+            console.log(winGame.player);
+
+            expect(winGame.player, caller.address);
+            expect(winGame.depositAmount, 10);
+            expect(winGame.choice, 1);
+            expect(winGame.result, 1);
+            expect(winGame.prize, prize);
+            expect(winGame.status, 1);
+
+        })
+    })
     //profit negative ask~~~~~
     describe("Withdraw", () => {
         it("Should decrease profit ", async () => {

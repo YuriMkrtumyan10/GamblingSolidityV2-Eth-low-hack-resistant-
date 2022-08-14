@@ -77,8 +77,58 @@ contract CoinFlip is Ownable {
         minDepositAmount = _minDepositAmount;
     }
 
+    function playWithEthereum(uint256 _choice)
+        external
+        payable
+    {
+        require(msg.value > 0, "Deposit some Eth");
+        require(_choice == 1 || _choice == 0, "Wrong choice");
+        require(
+            address(this).balance >= msg.value,
+            "Not enough funds to prize"
+        );
+        require(
+            msg.value >= minDepositAmount && msg.value <= maxDepositAmount,
+            "CoinFlip: bet should be in range"
+        );
+        payable(address(this)).transfer(msg.value);
+
+        Game memory game = Game(
+            msg.sender,
+            msg.value,
+            _choice,
+            0,
+            0,
+            Status.PENDING
+        );
+
+        uint256 result = block.number % 2; // 0 || 1
+
+        if (result == _choice) {
+            game.result = result;
+            game.status = Status.WIN;
+            game.prize = ((msg.value * coef) / 100);
+            token.transfer(game.player, game.prize);
+            games[totalGamesCount] = game;
+        } else {
+            game.result = result;
+            game.status = Status.LOSE;
+            game.prize = 0;
+            profit += game.depositAmount;
+            games[totalGamesCount] = game;
+        }
+        totalGamesCount += 1;
+        emit GameFinished(
+            game.player,
+            game.depositAmount,
+            game.choice,
+            game.result,
+            game.prize,
+            game.status
+        );
+    }
+
     function play(uint256 _depositAmount, uint256 _choice) external payable {
-     //   require( msg.value > 0, "Asaasa");
         require(
             token.balanceOf(msg.sender) >= _depositAmount,
             "Not enough funds"
@@ -99,11 +149,8 @@ contract CoinFlip is Ownable {
             "Not enough allowance"
         );
 
-
-        
-      
         token.transferFrom(msg.sender, address(this), _depositAmount);
-        
+
         Game memory game = Game(
             msg.sender,
             _depositAmount,
