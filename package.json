@@ -13,6 +13,7 @@
     "hardhat": "^2.10.1"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.7.3"
+    "@openzeppelin/contracts": "^4.7.3",
+    "hardhat-deploy": "^0.11.12"
   }
 }

@@ -40,6 +40,7 @@ contract CoinFlip is Ownable {
     GameToken public token;
 
     mapping(uint256 => Game) public games;
+    mapping (address => Game) public upcomminggames;
 
     event GameFinished(
         address indexed _player,
@@ -77,10 +78,7 @@ contract CoinFlip is Ownable {
         minDepositAmount = _minDepositAmount;
     }
 
-    function playWithEthereum(uint256 _choice)
-        external
-        payable
-    {
+    function playWithEthereum(uint256 _choice) external payable {
         require(msg.value > 0, "Deposit some Eth");
         require(_choice == 1 || _choice == 0, "Wrong choice");
         require(
@@ -91,7 +89,6 @@ contract CoinFlip is Ownable {
             msg.value >= minDepositAmount && msg.value <= maxDepositAmount,
             "CoinFlip: bet should be in range"
         );
-        payable(address(this)).transfer(msg.value);
 
         Game memory game = Game(
             msg.sender,
@@ -101,26 +98,29 @@ contract CoinFlip is Ownable {
             0,
             Status.PENDING
         );
+        confirmEth(game);
+    }
 
+    function confirmEth(Game memory game) internal onlyOwner{
         uint256 result = block.number % 2; // 0 || 1
 
-        if (result == _choice) {
+        if (result == game.choice) {
             game.result = result;
             game.status = Status.WIN;
             game.prize = ((msg.value * coef) / 100);
-            token.transfer(game.player, game.prize);
+            payable(game.player).transfer(game.prize);
             games[totalGamesCount] = game;
         } else {
             game.result = result;
             game.status = Status.LOSE;
             game.prize = 0;
-            profit += game.depositAmount;
+            profit += msg.value;
             games[totalGamesCount] = game;
         }
         totalGamesCount += 1;
         emit GameFinished(
             game.player,
-            game.depositAmount,
+            msg.value,
             game.choice,
             game.result,
             game.prize,
@@ -160,29 +160,33 @@ contract CoinFlip is Ownable {
             Status.PENDING
         );
 
+        upcomminggames[msg.sender] = game;
+    }
+
+    function confirm(Game memory _game) public onlyOwner {
         uint256 result = block.number % 2; // 0 || 1
 
-        if (result == _choice) {
-            game.result = result;
-            game.status = Status.WIN;
-            game.prize = ((_depositAmount * coef) / 100);
-            token.transfer(game.player, game.prize);
-            games[totalGamesCount] = game;
+        if (result == _game.choice) {
+            _game.result = result;
+            _game.status = Status.WIN;
+            _game.prize = ((_game.depositAmount * coef) / 100);
+            token.transfer(_game.player, _game.prize);
+            games[totalGamesCount] = _game;
         } else {
-            game.result = result;
-            game.status = Status.LOSE;
-            game.prize = 0;
-            profit += game.depositAmount;
-            games[totalGamesCount] = game;
+            _game.result = result;
+            _game.status = Status.LOSE;
+            _game.prize = 0;
+            profit += _game.depositAmount;
+            games[totalGamesCount] = _game;
         }
         totalGamesCount += 1;
         emit GameFinished(
-            game.player,
-            game.depositAmount,
-            game.choice,
-            game.result,
-            game.prize,
-            game.status
+            _game.player,
+            _game.depositAmount,
+            _game.choice,
+            _game.result,
+            _game.prize,
+            _game.status
         );
     }
 
