@@ -1,44 +1,43 @@
 const {
     loadFixture,
-    mine
+    mine,
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect, assert } = require("chai");
 const { ethers, config } = require("hardhat");
 
+
 describe("CoinFlip", function () {
     async function deployToken() {
-        const [owner, caller, otherAccount] = await ethers.getSigners();
-        const CoinFlip = await ethers.getContractFactory("CoinFlip");
-        const coinflip = await CoinFlip.deploy();
-        const tokenAddress = await coinflip.token();
 
-        console.log("Token address is: ", tokenAddress);
+        const [owner, caller, croupier, otherAccount] = await ethers.getSigners();
+        const CoinFlip = await ethers.getContractFactory("CoinFlip");
+        const coinflip = await CoinFlip.deploy(croupier.address);
         console.log("Contract address is: ", coinflip.address);
 
+        const tokenAddress = await coinflip.token();
         const token = await ethers.getContractAt("GameToken", tokenAddress);
-        await token.mint(coinflip.address, 1000000);
 
-
-        return { coinflip, tokenAddress, owner, caller, token, otherAccount };
+        return { coinflip, croupier, owner, caller, token, otherAccount };
     }
 
     describe("Initial State", () => {
         it("Should initialize with correct args: ", async () => {
-            const { coinflip, owner, caller } = await loadFixture(deployToken);
+            const { coinflip, owner, caller, croupier } = await loadFixture(deployToken);
 
-            expect(await coinflip.minDepositAmount()).to.equal(100);
+            expect(await coinflip.minDepositAmount()).to.equal(ethers.BigNumber.from("100"));
             expect(await coinflip.maxDepositAmount()).to.equal(ethers.BigNumber.from("1000000000000000000"));
-            expect(await coinflip.coef()).to.equal(195);
-
+            expect(await coinflip.coef()).to.equal(ethers.BigNumber.from("195"));
+            expect(await coinflip.coef()).to.equal(ethers.BigNumber.from("195"));
+            expect(await coinflip.croupier()).to.equal(croupier.address);
         });
     });
 
     describe("Change Coefficient", () => {
         it("Should be able to change with correct args: ", async () => {
-            const { coinflip, owner, caller } = await loadFixture(deployToken);
-            await coinflip.changeCoef(195);
+            const { coinflip, owner } = await loadFixture(deployToken);
 
-            expect(await coinflip.coef()).to.equal(195);
+            await coinflip.changeCoef(ethers.BigNumber.from("195"));
+            expect(await coinflip.coef()).to.equal(ethers.BigNumber.from("195"));
         });
 
         it("Should be in range > 100 and < 200: ", async () => {
@@ -69,6 +68,28 @@ describe("CoinFlip", function () {
     });
 
     describe("Play", () => {
+        it("Should create win game with correct args: ", async () => {
+            const { coinflip, owner, croupier } = await loadFixture(deployToken);
+            await mine(1);
+            const choice = ethers.BigNumber.from("1");
+            const seed = ethers.utils.formatBytes32String("game");
+
+
+            await coinflip.play({ value: 50 }, seed, choice);
+            const winGame = await coinflip.games(seed);
+            const prize = 50 * coinflip.coef() / 100;
+
+
+            expect(winGame.player, owner.address);
+            expect(winGame.depositAmount, 1000);
+            expect(winGame.choice, 1);
+            expect(winGame.result, 1);
+            expect(winGame.prize, prize);
+            expect(winGame.status, 1);
+        })
+    })
+
+    xdescribe("Play2", () => {
 
         it("Should create win game with correct args: ", async () => {
             const { coinflip, tokenAddress, token, owner, caller } = await loadFixture(deployToken);
@@ -157,7 +178,7 @@ describe("CoinFlip", function () {
 
         });
         //wins correct change Of balances :::Loses incorrect change of balances !!!!!!!!!!!!!!!!!!
-        xit("Should transfer correct amount when player loses: ", async () => {
+        it("Should transfer correct amount when player loses: ", async () => {
             const { coinflip, tokenAddress, token, owner, caller } = await loadFixture(deployToken);
             await coinflip.transferOwnership(owner.address);
 
@@ -318,20 +339,24 @@ describe("CoinFlip", function () {
 
         })
     })
-    //profit negative ask~~~~~
-    describe("Withdraw", () => {
-        it("Should decrease profit ", async () => {
+    xdescribe("Withdraw", () => {
+        xit("Should withdraw money from contract: ", async () => {
             const { coinflip, owner, tokenAddress, token, caller } = await loadFixture(deployToken);
-            await coinflip.withdraw(100);
+            await coinflip.withdraw({ value: 200 });
 
-            await expect(() => token.transfer(coinflip.address, 100))
-                .to.changeTokenBalance(token, coinflip, 100);
+            // await expect(() => token.transfer(coinflip.address, 100))
+            //     .to.changeTokenBalance(token, coinflip, 100);
+
+            await expect(token.transfer(owner.address, 200))
+                .to.changeEtherBalances([coinflip, owner], [-200, 200]);
         });
 
         it("Should revert a message when there is not enough funds to withdraw ", async () => {
-            const { coinflip, owner, caller } = await loadFixture(deployToken);
+            const { coinflip, token, owner } = await loadFixture(deployToken);
 
-            await expect(coinflip.withdraw(10000000000000))
+            await owner.sendTransaction({to: coinflip.address, value: 1000});
+
+            await expect(coinflip.withdraw({ value: 1000000000 }))
                 .to.be.revertedWith('Not enough funds');
         });
 

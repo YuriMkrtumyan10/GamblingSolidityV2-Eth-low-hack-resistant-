@@ -4,6 +4,7 @@ pragma solidity 0.8.9;
 import "hardhat/console.sol";
 import "./GameToken.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 // 1. Custom types struct/enum
 // 2. state variables
@@ -17,7 +18,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 // 10. internal
 // 11. private
 
-contract CoinFlip is Ownable {
+contract CoinFlip is AccessControl {
     enum Status {
         PENDING,
         WIN,
@@ -25,6 +26,7 @@ contract CoinFlip is Ownable {
     }
 
     struct Game {
+        uint256 id; // total games count
         address player;
         uint256 depositAmount;
         uint256 choice;
@@ -37,28 +39,42 @@ contract CoinFlip is Ownable {
     uint256 public minDepositAmount;
     uint256 public maxDepositAmount;
     uint256 public profit;
+    address public croupier;
     GameToken public token;
 
-    mapping(uint256 => Game) public games;
-    mapping (address => Game) public upcomminggames;
+    bytes32 public constant croupierRole = keccak256("CROPIER_ROLE");
+    bytes32 public constant ownerRole = keccak256("OWNER_ROLE");
 
-    event GameFinished(
+    mapping(bytes32 => Game) public games;
+    mapping(address => Game) public upcomminggames;
+
+    event GameCreated(address indexed _player, uint256 _choice, bytes32 _seed);
+
+    event Confirmed(
+        bytes32 _seed,
         address indexed _player,
-        uint256 _deposit,
-        uint256 _choice,
         uint256 _result,
-        uint256 _prize,
-        Status indexed status
+        uint256 _amount,
+        uint256 _choice
     );
 
-    constructor() {
+    constructor(address _croupier) {
+        croupier = _croupier;
         minDepositAmount = 100;
         maxDepositAmount = 1 ether;
         token = new GameToken();
         coef = 195;
+
+        _setupRole(croupierRole, croupier);
+        _setupRole(ownerRole, msg.sender);
     }
 
-    function changeCoef(uint256 _coef) external onlyOwner {
+    modifier uniqueSeed(bytes32 _seed) {
+        require(games[_seed].id == 0, "CoinFlip: Seed not unique");
+        _;
+    }
+
+    function changeCoef(uint256 _coef) external onlyRole(ownerRole) {
         require(
             _coef > 100 && _coef < 200,
             "Should be greater than 100, less than 200"
@@ -69,7 +85,7 @@ contract CoinFlip is Ownable {
     function changeMaxMinBet(
         uint256 _minDepositAmount,
         uint256 _maxDepositAmount
-    ) external onlyOwner {
+    ) external onlyRole(ownerRole) {
         require(
             _minDepositAmount < _maxDepositAmount,
             "CoinFlip: Invalid Funds:"
@@ -78,11 +94,16 @@ contract CoinFlip is Ownable {
         minDepositAmount = _minDepositAmount;
     }
 
-    function playWithEthereum(uint256 _choice) external payable {
+    function play(bytes32 _seed, uint256 _choice)
+        external
+        payable
+        uniqueSeed(_seed)
+        onlyRole(ownerRole)
+    {
         require(msg.value > 0, "Deposit some Eth");
         require(_choice == 1 || _choice == 0, "Wrong choice");
         require(
-            address(this).balance >= msg.value,
+            address(this).balance >= (msg.value * coef) / 100,
             "Not enough funds to prize"
         );
         require(
@@ -90,7 +111,10 @@ contract CoinFlip is Ownable {
             "CoinFlip: bet should be in range"
         );
 
-        Game memory game = Game(
+        totalGamesCount++;
+
+        games[_seed] = Game(
+            totalGamesCount,
             msg.sender,
             msg.value,
             _choice,
@@ -98,109 +122,95 @@ contract CoinFlip is Ownable {
             0,
             Status.PENDING
         );
-        confirmEth(game);
     }
 
-    function confirmEth(Game memory game) internal onlyOwner{
-        uint256 result = block.number % 2; // 0 || 1
+    function confirmEth(
+        bytes32 _seed,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) external payable onlyRole(croupierRole) {
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        bytes32 prefixedHash = keccak256(abi.encodePacked(prefix, _seed));
+        require(
+            ecrecover(prefixedHash, _v, _r, _s) == croupier,
+            "Invalid sign"
+        );
+
+        Game storage game = games[_seed];
+        uint256 result = block.number % 2;
 
         if (result == game.choice) {
             game.result = result;
             game.status = Status.WIN;
             game.prize = ((msg.value * coef) / 100);
             payable(game.player).transfer(game.prize);
-            games[totalGamesCount] = game;
         } else {
             game.result = result;
             game.status = Status.LOSE;
-            game.prize = 0;
             profit += msg.value;
-            games[totalGamesCount] = game;
         }
-        totalGamesCount += 1;
-        emit GameFinished(
+
+        emit Confirmed(
+            _seed,
             game.player,
-            msg.value,
-            game.choice,
             game.result,
-            game.prize,
-            game.status
+            game.depositAmount,
+            game.choice
         );
     }
 
-    function play(uint256 _depositAmount, uint256 _choice) external payable {
+    function playEthToken(uint256 _depositAmount, uint256 _choice)
+        external
+        payable
+        onlyRole(ownerRole)
+    {
         require(
-            token.balanceOf(msg.sender) >= _depositAmount,
+            (token.balanceOf(msg.sender) >= _depositAmount) ||
+                msg.sender.balance >= msg.value,
             "Not enough funds"
         );
         require(
-            _depositAmount >= minDepositAmount &&
-                _depositAmount <= maxDepositAmount,
+            (msg.value > 0 && _depositAmount == 0) ||
+                (_depositAmount > 0 && msg.value == 0)
+        );
+        require(
+            (_depositAmount >= minDepositAmount &&
+                _depositAmount <= maxDepositAmount) ||
+                (msg.value >= minDepositAmount &&
+                    msg.value <= maxDepositAmount),
             "CoinFlip: bet should be in range"
         );
         require(
-            token.balanceOf(address(this)) >= (_depositAmount * coef) / 100,
+            (token.balanceOf(address(this)) >= (_depositAmount * coef) / 100) ||
+                ((address(this).balance) >= (msg.value * coef) / 100),
             "Not enough funds to prize it"
         );
         require(_choice == 0 || _choice == 1, "Coinflip: wrong choice");
 
         require(
-            token.allowance(msg.sender, address(this)) >= _depositAmount,
+            token.allowance(msg.sender, address(this)) >= _depositAmount ||
+                token.allowance(msg.sender, address(this)) >= msg.value,
             "Not enough allowance"
         );
 
-        token.transferFrom(msg.sender, address(this), _depositAmount);
+        // Game memory game = Game(
+        //     totalGamesCount,
+        //     msg.sender,
+        //     _depositAmount,
+        //     _choice,
+        //     0,
+        //     0,
+        //     Status.PENDING
+        // );
 
-        Game memory game = Game(
-            msg.sender,
-            _depositAmount,
-            _choice,
-            0,
-            0,
-            Status.PENDING
-        );
-
-        upcomminggames[msg.sender] = game;
+        // confirmEthToken(game);
     }
 
-    function confirm(Game memory _game) public onlyOwner {
-        uint256 result = block.number % 2; // 0 || 1
-
-        if (result == _game.choice) {
-            _game.result = result;
-            _game.status = Status.WIN;
-            _game.prize = ((_game.depositAmount * coef) / 100);
-            token.transfer(_game.player, _game.prize);
-            games[totalGamesCount] = _game;
-        } else {
-            _game.result = result;
-            _game.status = Status.LOSE;
-            _game.prize = 0;
-            profit += _game.depositAmount;
-            games[totalGamesCount] = _game;
-        }
-        totalGamesCount += 1;
-        emit GameFinished(
-            _game.player,
-            _game.depositAmount,
-            _game.choice,
-            _game.result,
-            _game.prize,
-            _game.status
-        );
+    function withdraw() external payable onlyRole(ownerRole) {
+        require((address(this).balance) >= msg.value, "Not enough funds");
+        payable(msg.sender).transfer(msg.value);
     }
 
-    function withdraw(uint256 _amount) external onlyOwner {
-        require(token.balanceOf(address(this)) >= _amount, "Not enough funds");
-        //profit -= _amount;
-        token.transfer(msg.sender, _amount);
-    }
-
-    function mint(uint256 _amount) public {
-        token.mint(msg.sender, _amount);
-    }
-
-    function burn(uint256 _amount) public {
-        token.burn(msg.sender, _amount);
-    }
+    receive() external payable onlyRole(ownerRole) {}
 }
